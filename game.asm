@@ -41,16 +41,19 @@
 .eqv	GRAY			0x009E9E9E
 .eqv	DARK_GRAY		0x005C5C5C
 .eqv	BLACK			0x00000000
+.eqv 	LIME_GREEN		0x0000FF00
 
 .data
 ship:		.space		144	# array to hold spaceship position
 ship_colors:	.space		144	# array to hold spaceship colors
 asteroids:	.space		144	# array to hold the 3 asteroids positions
-
+health_bar:	.space		80	# array to hold the ships health
+health:		.word		20	# current value of the ship health
 .text
 	li $t0, BASE_ADDRESS	# $t0 stores the base address for the display
 	jal init_ship		# initialize ship contents
 	jal init_asteroids	# initialize asteroid contents
+	jal init_healthbar	# initialize ship health bar
 	jal game_loop		# main game loop
 	j QUIT			# quit the program
 
@@ -66,6 +69,7 @@ keypress_return:
 	jal update_asteroids	# update asteroids state
 	jal check_collisions 	# check for asteroid and ship collision	
 	jal clear_screen	# clears the screen
+	jal draw_healthbar	# draw the healthbar
 	jal draw_asteroids	# draw the asteroids
 	jal draw_ship		# draws the ship
 	li $v0, 32		# sleep
@@ -93,6 +97,7 @@ restart_game:
 	sw $ra, 0($sp)
 	jal init_ship		# initialize ship contents
 	jal init_asteroids	# initialize asteroid contents
+	jal init_healthbar
 	jal clear_screen
 	lw $ra, 0($sp)
 	sub $sp, $sp, 4
@@ -742,6 +747,10 @@ collision_happened:
 	li $t4, 0		# $t4 holds the iterator for loop
 	li $t5, RED		# $t5 holds color at current index
 	li $t6, 0		# $t6 holds offset
+	la $t9, health		# $t9 holds address of health
+	lw $t8, 0($t9)		# get current health
+	sub $t8, $t8, 1		# decrease health by 1
+	sw $t8, 0($t9)		# write new health
 collision_happened.loop:
 	beq $t4, 144, check_collisions.done		# while not at the end of the array
 	add $t6, $t1, $t4			# get ship[i]
@@ -754,6 +763,44 @@ check_collisions.done:
 	jr $ra
 
 
+# init_healthbar: This function sets the ships healthbar to be full health
+init_healthbar:
+	la $t1, health	# $t1 holds address of health
+	li $t2, 20	# $t1 holds value of 100
+	sw $t2, 0($t1)	# resets health to 100
+	jr $ra
+	
+
+# draw_healthbar: This function draws the healthbar in the top right corner
+#		   of the bitmap display
+draw_healthbar:
+	li $t9, LIME_GREEN	# $t9 holds the color for healthbar
+	la $t1, health_bar	# $t1 holds address of the healthbar
+	la $t2, health		# $t2 holds address of current health
+	li $t4, 0		# $t4 holds iterator for loop
+	li $t5, 424
+	lw $t3, 0($t2)		# get the current health
+	mul $t3, $t3, 4
+draw_healthbar.loop:
+	beq $t4, $t3, draw_healthbar.end_loop
+	add $t6, $t0, $t5	# get position on display
+	sw $t9, 0($t6)		# color position on display
+	add $t4, $t4, 4		# increment loop iterator
+	add $t5, $t5, 4
+	j draw_healthbar.loop
+draw_healthbar.end_loop:
+	li $t9, RED
+draw_healthbar.loop2:
+	beq $t4, 80, draw_healthbar.end_loop2
+	add $t6, $t0, $t5	# get position on display
+	sw $t9, 0($t6)		# color position on display
+	add $t4, $t4, 4		# increment loop iterator
+	add $t5, $t5, 4
+	j draw_healthbar.loop2
+draw_healthbar.end_loop2:
+	jr $ra
+	
+	
 QUIT:	# Terminate the program gracefully
 	li $v0, 10 
 	syscall
