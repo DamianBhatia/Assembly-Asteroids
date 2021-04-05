@@ -77,12 +77,25 @@ keypress_return:
 # 		   correct function to handle the key press
 handle_keypress:
 	lw $t2, 4($t9)			# get which key was pressed
+	beq $t2, 0x70, restart_game	# if p was pressed restart game
 	beq $t2, 0x77, move_ship_up	# if w was pressed move up
 	beq $t2, 0x73, move_ship_down	# if s was pressed move down
 	beq $t2, 0x61, move_ship_left	# if a was pressed move left
 	beq $t2, 0x64, move_ship_right	# if d was pressed move right
 	j keypress_return		# otherwise return to game loop
 
+
+# restart_game: This function reinitializes the game variables so that the
+#		 game goes back to the state at the start of the game
+restart_game:
+	add $sp, $sp, 4
+	sw $ra, 0($sp)
+	jal init_ship		# initialize ship contents
+	jal init_asteroids	# initialize asteroid contents
+	jal clear_screen
+	lw $ra, 0($sp)
+	sub $sp, $sp, 4
+	jr $ra
 
 # move_ship_up: This function moves the ship up when the w key is pressed
 move_ship_up:
