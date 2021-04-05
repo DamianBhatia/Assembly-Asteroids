@@ -61,7 +61,7 @@ asteroids:	.space		144	# array to hold the 3 asteroids positions
 game_loop:
 	li $t9, 0xffff0000	# check for key pressed
 	lw $t8, 0($t9)
-	beq $t8, 1, handle_keypress
+	beq $t8, 1, handle_keypress	# if there was a key pressed then handle the event
 keypress_return:
 	jal update_asteroids	# update asteroids state	
 	jal clear_screen	# clears the screen
@@ -89,6 +89,8 @@ move_ship_up:
 	la $t1, ship	# $t1 holds address of the ship
 	li $t3, 0	# $t3 holds the iterator for the loop
 	li $t4, 0	# $t4 holds the address of ship[i]
+	lw $t9, 0($t1)	# $t9 holds ship[0]
+	ble $t9, 252, move_ship_up.end_loop
 move_ship_up.loop:
 	beq $t3, 144, move_ship_up.end_loop
 	add $t4, $t1, $t3	# get ship[i] address
@@ -103,9 +105,11 @@ move_ship_up.end_loop:
 
 # move_ship_down: This function moves the ship down when the s key is pressed
 move_ship_down:
-	la $t1, ship	# $t1 holds address of the ship
-	li $t3, 0	# $t3 holds the iterator for the loop
-	li $t4, 0	# $t4 holds the address of ship[i]
+	la $t1, ship		# $t1 holds address of the ship
+	li $t3, 0		# $t3 holds the iterator for the loop
+	li $t4, 0		# $t4 holds the address of ship[i]
+	lw $t9, 120($t1)	# $t9 holds ship[30]
+	bge $t9, 16128, move_ship_down.end_loop
 move_ship_down.loop:
 	beq $t3, 144, move_ship_down.end_loop
 	add $t4, $t1, $t3	# get ship[i] address
@@ -120,9 +124,15 @@ move_ship_down.end_loop:
 
 # move_ship_left: This function moves the ship left when the a key is pressed
 move_ship_left:
-	la $t1, ship	# $t1 holds address of the ship
-	li $t3, 0	# $t3 holds the iterator for the loop
-	li $t4, 0	# $t4 holds the address of ship[i]
+	la $t1, ship		# $t1 holds address of the ship
+	li $t3, 0		# $t3 holds the iterator for the loop
+	li $t4, 0		# $t4 holds the address of ship[i]
+	lw $t9, 0($t1)		# $t9 holds ship[0]
+	div $t9, $t9, 4		# divide the index on display by 4
+	li $t8, 64		
+	div $t9, $t8		# divide by 64 to get remainder which will be x value
+	mfhi $t9		# store x value
+	beqz $t9, move_ship_left.end_loop	# if x == 0 then don't want to move left
 move_ship_left.loop:
 	beq $t3, 144, move_ship_left.end_loop
 	add $t4, $t1, $t3	# get ship[i] address
@@ -140,6 +150,12 @@ move_ship_right:
 	la $t1, ship	# $t1 holds address of the ship
 	li $t3, 0	# $t3 holds the iterator for the loop
 	li $t4, 0	# $t4 holds the address of ship[i]
+	lw $t9, 84($t1)		# $t9 holds ship[21]
+	div $t9, $t9, 4		# divide the index on display by 4
+	li $t8, 64		
+	div $t9, $t8		# divide by 64 to get remainder which will be x value
+	mfhi $t9		# store x value
+	beq $t9, 63, move_ship_right.end_loop	# if x == 0 then don't want to move left
 move_ship_right.loop:
 	beq $t3, 144, move_ship_right.end_loop
 	add $t4, $t1, $t3	# get ship[i] address
@@ -150,7 +166,7 @@ move_ship_right.loop:
 	j move_ship_right.loop
 move_ship_right.end_loop:
 	j keypress_return	# return to game loop
-	
+
 
 # update_asteroids: This function updates the state of the asteroids
 update_asteroids:
@@ -158,6 +174,179 @@ update_asteroids:
 	li $t4, 0						# $t4 holds iterator for loop
 	li $t6, 0						# $t6 holds the index on the display
 	li $t2, 0						# $t2 holds offset
+	li $t3, 64	
+	
+	# Check if at left adge of the screen
+	lw $t9, 0($t1)		# first asteroid top left
+	div $t7, $t9, 4		# divide the index on display by 4
+
+	div $t7, $t3			# divide by 64 to get remainder which will be x value
+	mfhi $t7			# store x value
+	
+	bne $t7, 0, gen_new_random.end # if x != 0 then don't want to generate new random position
+	
+	# Generate new random position
+	li $v0, 42
+	li $a0, 0
+	li $a1, 59 
+	syscall
+	
+	move $t5, $a0		# $t5 holds the random number or y
+	mul $t5, $t5, 256
+	
+	li $v0, 42
+	li $a0, 0
+	li $a1, 40
+	syscall
+	
+	move $t8, $a0		# $t8 holds the random number for x
+	add $t8, $t8, 32
+	mul $t8, $t8, 4	
+	add $t5, $t5, $t8	# $t5 holds the index on the display
+	
+	li $a3, 0		# iterator for the loop
+gen_new_position_loop:
+	beq $a3, 36, gen_new_random.end			# while not at the end of the asteroid
+	beq $a3, 12, gen_new_position_first_update	# if in second row
+	beq $a3, 24, gen_new_position_first_update	# if in third row
+gen_new_position_continue:
+	add $t9, $t1, $a3	# get asteroid[i]
+	sw $t5, 0($t9)		# replace current position with new random position
+	add $a3, $a3, 4		# increment loop iterator
+	add $t5, $t5, 4		# increment index on display
+	j gen_new_position_loop
+gen_new_position_first_update:
+	add $t5, $t5, 244	# jump to next line if in another row
+	j gen_new_position_continue
+gen_new_random.end:
+	# Check if at left adge of the screen
+	lw $t9, 36($t1)		# first asteroid top left
+	div $t7, $t9, 4		# divide the index on display by 4
+
+	div $t7, $t3			# divide by 64 to get remainder which will be x value
+	mfhi $t7			# store x value
+	
+	bne $t7, 0, gen_new_random.end2 # if x != 0 then don't want to generate new random position
+	
+	# Generate new random position
+	li $v0, 42
+	li $a0, 0
+	li $a1, 59 
+	syscall
+	
+	move $t5, $a0		# $t5 holds the random number or y
+	mul $t5, $t5, 256
+	
+	li $v0, 42
+	li $a0, 0
+	li $a1, 40
+	syscall
+	
+	move $t8, $a0		# $t8 holds the random number for x
+	add $t8, $t8, 32
+	mul $t8, $t8, 4	
+	add $t5, $t5, $t8	# $t5 holds the index on the display
+	
+	li $a3, 36		# iterator for the loop
+gen_new_position_loop2:
+	beq $a3, 72, gen_new_random.end2		# while not at the end of the asteroid
+	beq $a3, 48, gen_new_position_second_update	# if in second row
+	beq $a3, 60, gen_new_position_second_update	# if in third row
+gen_new_position_continue2:
+	add $t9, $t1, $a3	# get asteroid[i]
+	sw $t5, 0($t9)		# replace current position with new random position
+	add $a3, $a3, 4		# increment loop iterator
+	add $t5, $t5, 4		# increment index on display
+	j gen_new_position_loop2
+gen_new_position_second_update:
+	add $t5, $t5, 244	# jump to next line if in another row
+	j gen_new_position_continue2
+gen_new_random.end2:
+	# Check if at left adge of the screen
+	lw $t9, 72($t1)		# first asteroid top left
+	div $t7, $t9, 4		# divide the index on display by 4
+
+	div $t7, $t3			# divide by 64 to get remainder which will be x value
+	mfhi $t7			# store x value
+	
+	bne $t7, 0, gen_new_random.end3 # if x != 0 then don't want to generate new random position
+	
+	# Generate new random position
+	li $v0, 42
+	li $a0, 0
+	li $a1, 59 
+	syscall
+	
+	move $t5, $a0		# $t5 holds the random number or y
+	mul $t5, $t5, 256
+	
+	li $v0, 42
+	li $a0, 0
+	li $a1, 40
+	syscall
+	
+	move $t8, $a0		# $t8 holds the random number for x
+	add $t8, $t8, 32
+	mul $t8, $t8, 4	
+	add $t5, $t5, $t8	# $t5 holds the index on the display
+	
+	li $a3, 72		# iterator for the loop
+gen_new_position_loop3:
+	beq $a3, 108, gen_new_random.end3		# while not at the end of the asteroid
+	beq $a3, 84, gen_new_position_third_update	# if in second row
+	beq $a3, 96, gen_new_position_third_update	# if in third row
+gen_new_position_continue3:
+	add $t9, $t1, $a3	# get asteroid[i]
+	sw $t5, 0($t9)		# replace current position with new random position
+	add $a3, $a3, 4		# increment loop iterator
+	add $t5, $t5, 4		# increment index on display
+	j gen_new_position_loop3
+gen_new_position_third_update:
+	add $t5, $t5, 244	# jump to next line if in another row
+	j gen_new_position_continue3
+gen_new_random.end3:
+	# Check if at left adge of the screen
+	lw $t9, 108($t1)		# first asteroid top left
+	div $t7, $t9, 4		# divide the index on display by 4
+
+	div $t7, $t3			# divide by 64 to get remainder which will be x value
+	mfhi $t7			# store x value
+	
+	bne $t7, 0, update_asteroids.loop	# if x != 0 then don't want to generate new random position
+	
+	# Generate new random position
+	li $v0, 42
+	li $a0, 0
+	li $a1, 59 
+	syscall
+	
+	move $t5, $a0		# $t5 holds the random number or y
+	mul $t5, $t5, 256
+	
+	li $v0, 42
+	li $a0, 0
+	li $a1, 40
+	syscall
+	
+	move $t8, $a0		# $t8 holds the random number for x
+	add $t8, $t8, 32
+	mul $t8, $t8, 4	
+	add $t5, $t5, $t8	# $t5 holds the index on the display
+	
+	li $a3, 108		# iterator for the loop
+gen_new_position_loop4:
+	beq $a3, 144, update_asteroids.loop		# while not at the end of the asteroid
+	beq $a3, 120, gen_new_position_fourth_update	# if in second row
+	beq $a3, 132, gen_new_position_fourth_update	# if in third row
+gen_new_position_continue4:
+	add $t9, $t1, $a3	# get asteroid[i]
+	sw $t5, 0($t9)		# replace current position with new random position
+	add $a3, $a3, 4		# increment loop iterator
+	add $t5, $t5, 4		# increment index on display
+	j gen_new_position_loop4
+gen_new_position_fourth_update:
+	add $t5, $t5, 244	# jump to next line if in another row
+	j gen_new_position_continue4
 update_asteroids.loop:
 	beq $t4, 144, update_asteroids.end_loop		# for loop for entire asteroid
 	add $t2, $t4, $t1					# get address of asteroids[i]
