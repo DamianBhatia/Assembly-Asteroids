@@ -63,7 +63,8 @@ game_loop:
 	lw $t8, 0($t9)
 	beq $t8, 1, handle_keypress	# if there was a key pressed then handle the event
 keypress_return:
-	jal update_asteroids	# update asteroids state	
+	jal update_asteroids	# update asteroids state
+	jal check_collisions 	# check for asteroid and ship collision	
 	jal clear_screen	# clears the screen
 	jal draw_asteroids	# draw the asteroids
 	jal draw_ship		# draws the ship
@@ -638,7 +639,121 @@ draw_ship.loop:
 	j draw_ship.loop
 draw_ship.end_loop:
 	jr $ra
+
+
+# check_collisions: This function checks for collisions between the player ship and
+# 		     the asteroids
+check_collisions:
+	la $t1, ship		# $t1 holds the address for the ship
+	la $t2, asteroids	# $t2 holds the address for the asteroids
+	li $t3, 64
 	
+	lw $t9, 68($t1)		# $t9 holds value of ship[i]
+	div $t7, $t9, 4		# divide the index on display by 4
+
+	div $t7, $t3			# divide by 64 to get remainder which will be x value
+	mfhi $t7			# store x value
+	mflo $t5			# store y value
+	
+	# Check asteroid 1 collision
+	lw $t8, 16($t2)		# $t8 holds middle of asteroid
+	div $t6, $t8, 4		# divide the index on display by 4
+	
+	div $t6, $t3		# divide by 64 to get remainder which will be x value
+	mfhi $t6		# store x value
+	mflo $t3		# store y value
+	
+	sub $t4, $t6, $t7 	# get x value distance between ship and asteroid
+	sub $t3, $t3, $t5	# get y value distance between ship and asteroid
+	
+	# Branch if the x or y distance is not within 2 otherwise a collision has happened
+	bgt $t4, 2, check_collisions.second		
+	blt $t4, -2, check_collisions.second		
+	bgt $t3, 4, check_collisions.second		
+	blt $t3, -4, check_collisions.second
+	
+	j collision_happened
+	
+check_collisions.second:
+	li $t3, 64
+	# Check asteroid 2 collision
+	lw $t8, 52($t2)		# $t8 holds middle of asteroid
+	div $t6, $t8, 4		# divide the index on display by 4
+	
+	div $t6, $t3		# divide by 64 to get remainder which will be x value
+	mfhi $t6		# store x value
+	mflo $t3		# store y value
+	
+	sub $t4, $t6, $t7 	# get x value distance between ship and asteroid
+	sub $t3, $t3, $t5	# get y value distance between ship and asteroid
+	
+	# Branch if the x or y distance is not within 2 otherwise a collision has happened
+	bgt $t4, 2, check_collisions.third		
+	blt $t4, -2, check_collisions.third		
+	bgt $t3, 4, check_collisions.third		
+	blt $t3, -4, check_collisions.third
+	
+	j collision_happened
+	
+check_collisions.third:
+	li $t3, 64
+	# Check asteroid 3 collision
+	lw $t8, 88($t2)		# $t8 holds middle of asteroid
+	div $t6, $t8, 4		# divide the index on display by 4
+	
+	div $t6, $t3		# divide by 64 to get remainder which will be x value
+	mfhi $t6		# store x value
+	mflo $t3		# store y value
+	
+	sub $t4, $t6, $t7 	# get x value distance between ship and asteroid
+	sub $t3, $t3, $t5	# get y value distance between ship and asteroid
+	
+	# Branch if the x or y distance is not within 2 otherwise a collision has happened
+	bgt $t4, 2, check_collisions.fourth		
+	blt $t4, -2, check_collisions.fourth		
+	bgt $t3, 4, check_collisions.fourth		
+	blt $t3, -4, check_collisions.fourth
+	
+	j collision_happened
+	
+check_collisions.fourth:
+	li $t3, 64
+	# Check asteroid 4 collision
+	lw $t8, 124($t2)		# $t8 holds middle of asteroid
+	div $t6, $t8, 4		# divide the index on display by 4
+	
+	div $t6, $t3		# divide by 64 to get remainder which will be x value
+	mfhi $t6		# store x value
+	mflo $t3		# store y value
+	
+	sub $t4, $t6, $t7 	# get x value distance between ship and asteroid
+	sub $t3, $t3, $t5	# get y value distance between ship and asteroid
+	
+	# Branch if the x or y distance is not within 2 otherwise a collision has happened
+	bgt $t4, 2, check_collisions.done		
+	blt $t4, -2, check_collisions.done		
+	bgt $t3, 4, check_collisions.done		
+	blt $t3, -4, check_collisions.done
+	
+	j collision_happened
+	
+collision_happened:
+	li $t3, 0		# $t3 holds the index on the display
+	li $t4, 0		# $t4 holds the iterator for loop
+	li $t5, RED		# $t5 holds color at current index
+	li $t6, 0		# $t6 holds offset
+collision_happened.loop:
+	beq $t4, 144, check_collisions.done		# while not at the end of the array
+	add $t6, $t1, $t4			# get ship[i]
+	lw $t3, 0($t6)				# get value from ship[i]
+	add $t6, $t0, $t3			# get position on display
+	sw $t5, 0($t6)				# color that position
+	add $t4, $t4, 4				# increment iterator
+	j collision_happened.loop
+check_collisions.done:
+	jr $ra
+
+
 QUIT:	# Terminate the program gracefully
 	li $v0, 10 
 	syscall
