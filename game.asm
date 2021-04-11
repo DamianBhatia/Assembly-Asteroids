@@ -50,7 +50,7 @@ ship_colors:	.space		144	# array to hold spaceship colors
 asteroids:	.space		144	# array to hold the 3 asteroids positions
 health_bar:	.space		80	# array to hold the ships health
 health:		.word		20	# current value of the ship health
-power_up:	.word		0	# array to hold the powerup
+power_up:	.word		17000	# array to hold the powerup
 power_up_timer:	.word		300	# timer for when to spawn powerup
 power_type:	.word		0	# 0 if heal and 1 if speed boost	
 
