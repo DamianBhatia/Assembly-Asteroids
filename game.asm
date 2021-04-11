@@ -69,6 +69,11 @@ keypress_return:
 	jal update_asteroids	# update asteroids state
 	jal check_collisions 	# check for asteroid and ship collision	
 	jal clear_screen	# clears the screen
+	
+	la $t4, health		# check if game over
+	lw $t4, 0($t4)
+	ble $t4, $zero, game_over
+	
 	jal draw_healthbar	# draw the healthbar
 	jal draw_asteroids	# draw the asteroids
 	jal draw_ship		# draws the ship
@@ -76,6 +81,33 @@ keypress_return:
 	li $a0, 40
 	syscall
 	j game_loop
+
+
+# game_over: This function handles the game over screen and waits to
+#	     see if the user wants to restart the game
+game_over:
+	li $t1, 0		# $t1 will hold the address on the display
+	li $t2, 0		# $t2 holds the iterator for the loop
+	li $t3, RED		# $t3 holds the color black
+game_over.repaint_loop:
+	beq $t2, 16384, game_over.loop	
+	add $t1, $t0, $t2	# get position on display
+	sw $t3, 0($t1)		# color position red
+	add $t2, $t2, 4		# increment iterator
+	j game_over.repaint_loop
+game_over.loop:
+	li $t9, 0xffff0000		# check if a key was pressed
+	lw $t8, 0($t9)
+	beq $t8, 1, game_over.handle_keypress
+	j game_over.loop
+	
+game_over.handle_keypress:
+	lw $t2, 4($t9)			# get which key was pressed
+	beq $t2, 0x70, restart		# if p was pressed restart game
+	j game_over.loop
+restart:
+	jal restart_game		# resest the game state
+	j game_loop			# jump back to the main game loop
 
 
 # handle_keypress: This function handles any keys pressed and calls the 
@@ -384,7 +416,7 @@ clear_screen:
 	li $t2, 0		# $t2 holds the iterator for the loop
 	li $t3, BLACK		# $t3 holds the color black
 clear_screen.loop:
-	beq $t2, 16380, clear_screen.end_loop	
+	beq $t2, 16384, clear_screen.end_loop	
 	add $t1, $t0, $t2	# get position on display
 	sw $t3, 0($t1)		# color position black
 	add $t2, $t2, 4		# increment iterator
