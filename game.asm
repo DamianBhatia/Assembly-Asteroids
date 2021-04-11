@@ -42,6 +42,7 @@
 .eqv	DARK_GRAY		0x005C5C5C
 .eqv	BLACK			0x00000000
 .eqv 	LIME_GREEN		0x0000FF00
+.eqv	CYAN			0x0000FFFF
 
 .data
 ship:		.space		144	# array to hold spaceship position
@@ -49,6 +50,10 @@ ship_colors:	.space		144	# array to hold spaceship colors
 asteroids:	.space		144	# array to hold the 3 asteroids positions
 health_bar:	.space		80	# array to hold the ships health
 health:		.word		20	# current value of the ship health
+power_up:	.word		17000	# array to hold the powerup
+power_up_timer:	.word		300	# timer for when to spawn powerup
+power_type:	.word		0	# 0 if heal and 1 if speed boost	
+
 .text
 	li $t0, BASE_ADDRESS	# $t0 stores the base address for the display
 	jal init_ship		# initialize ship contents
@@ -74,6 +79,7 @@ keypress_return:
 	lw $t4, 0($t4)
 	ble $t4, $zero, game_over
 	
+	jal draw_power_up	# draw powerup if timer has finished
 	jal draw_healthbar	# draw the healthbar
 	jal draw_asteroids	# draw the asteroids
 	jal draw_ship		# draws the ship
@@ -81,6 +87,82 @@ keypress_return:
 	li $a0, 40
 	syscall
 	j game_loop
+
+
+# draw_power_up: This function will draw the powerup at a random location
+#		  if the spawn timer has hit zero
+draw_power_up:
+	la $t1, power_up_timer	# $t1 will hold the spawn timer
+	lw $t2, 0($t1)		# $t2 holds time remainings
+	beq $t2, $zero, draw_power_up.loop
+	sub $t2, $t2, 2		# decrement timer
+	sw $t2, 0($t1)		# update timer
+	
+	j draw_power_up.color
+draw_power_up.loop:
+	la $t8, power_up	# $t3 holds address of powerup 
+	
+	# Random number generator
+	li $v0, 42
+	li $a0, 0
+	li $a1, 59 
+	syscall
+	
+	move $t5, $a0		# $t5 holds the random number for y
+	mul $t5, $t5, 256
+	
+	li $v0, 42
+	li $a0, 0
+	li $a1, 40 
+	syscall
+	
+	move $t9, $a0		# $t9 holds the random number for x
+	add $t9, $t9, 15
+	mul $t9, $t9, 4	
+	add $t5, $t5, $t9	# $t5 holds the index on the display
+	
+	sw $t5, 0($t8)		# store position in power up
+	
+	li $t2, 300		# Reset the spawn timer
+	sw $t2, 0($t1)
+	
+	# Checks the type of powerup and flips it
+	la $t2, power_type
+	lw $t5, 0($t2)
+	beq $t5, $zero, set_power_one
+	li $t5, 0
+	sw $t5, 0($t2)
+	j draw_power_up.color
+set_power_one:
+	li $t5, 1
+	sw $t5, 0($t2)
+draw_power_up.color:	# choose the color based off of powerup type
+	la $t9, power_type
+	lw $t9, 0($t9)
+	
+	beq $t9, 0, speed
+	li $t8, LIME_GREEN		# $t8 holds the color of the powerup
+	j render_powerup
+speed:
+	li $t8, CYAN		
+render_powerup:
+	la $t1, power_up
+	lw $t9, 0($t1)
+	add $t7, $t0, $t9	# get display position
+	
+	sw $t8, 0($t7)		# color that position on display
+	sw $t8, 4($t7)
+	sw $t8, -4($t7)
+	
+	add $t9, $t9, 256	# color bottom part of the cross
+	add $t7, $t0, $t9
+	sw $t8, 0($t7)
+	
+	sub $t9, $t9, 512	# color top part of the cross
+	add $t7, $t0, $t9
+	sw $t8, 0($t7)
+draw_power_up.done:
+	jr $ra
 
 
 # game_over: This function handles the game over screen and waits to
