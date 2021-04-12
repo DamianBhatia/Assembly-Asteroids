@@ -14,13 +14,13 @@
 #
 #  Which milestones have been reached in this submission?
 #  (See the assignment handout for descriptions of the milestones)
-#  - Milestone 1/2/3/4 (choose the one the applies)
+#  - Milestone 4 (choose the one the applies)
 #
 #  Which approved features have been implemented for milestone 4?
 #  (See the assignment handout for the list of additional features)
-#  1. (fill in the feature, if any)
-#  2. (fill in the feature, if any)
-#  3. (fill in the feature, if any)
+#  1. Asteroid speeds increase the longer the game progresses
+#  2. Heal and Slow Asteroids powerups appear randomly that the ship can pickup
+#  3. Smooth graphics to try and eliminate flickering
 #  ... (add more if necessary)
 #
 #  Link to video demonstration for final submission:
@@ -44,15 +44,19 @@
 .eqv 	LIME_GREEN		0x0000FF00
 .eqv	CYAN			0x0000FFFF
 
+
 .data
-ship:		.space		144	# array to hold spaceship position
-ship_colors:	.space		144	# array to hold spaceship colors
-asteroids:	.space		144	# array to hold the 3 asteroids positions
-health_bar:	.space		80	# array to hold the ships health
-health:		.word		20	# current value of the ship health
-power_up:	.word		17000	# array to hold the powerup
-power_up_timer:	.word		300	# timer for when to spawn powerup
-power_type:	.word		0	# 0 if heal and 1 if speed boost	
+ship:				.space		144	# array to hold spaceship position
+ship_colors:			.space		144	# array to hold spaceship colors
+asteroids:			.space		144	# array to hold the 3 asteroids positions
+health_bar:			.space		80	# array to hold the ships health
+health:				.word		20	# current value of the ship health
+power_up:			.word		17000	# array to hold the powerup
+power_up_timer:			.word		300	# timer for when to spawn powerup
+power_type:			.word		0	# 0 if heal and 1 if speed boost	
+asteroid_speed:			.word		1	# speed at which asteroid is going
+asteroid_timer:			.word		350	# timer for when to increment asteroid speed
+
 
 .text
 	li $t0, BASE_ADDRESS	# $t0 stores the base address for the display
@@ -71,9 +75,11 @@ game_loop:
 	lw $t8, 0($t9)
 	beq $t8, 1, handle_keypress	# if there was a key pressed then handle the event
 keypress_return:
+	jal delete_asteroids
 	jal update_asteroids	# update asteroids state
 	jal check_collisions 	# check for asteroid and ship collision	
-	jal clear_screen	# clears the screen
+	jal powerup_collision
+	jal asteroid_speeds	# check if speed needs to increase
 	
 	la $t4, health		# check if game over
 	lw $t4, 0($t4)
@@ -89,6 +95,28 @@ keypress_return:
 	j game_loop
 
 
+
+# asteroid_speeds: This function is responsible for checking the speed of the 
+#		    asteroids and incrementing the speed if the timer hits 0
+asteroid_speeds:
+	la $t1, asteroid_timer
+	lw $t2, 0($t1)
+	ble $t2, $zero, speed_increment		# check if timer has run out
+	sub $t2, $t2, 1				# if no then decrement timer by 1
+	sw $t2, 0($t1)
+	j asteroid_speeds.done			# done checking
+speed_increment:
+	la $t3, asteroid_speed			# get the asteroid speed
+	lw $t4, 0($t3)
+	add $t4, $t4, 1				# increment the speed by 1
+	sw $t4, 0($t3)		
+	li $t3, 350				# reset the timer for next time
+	sw $t3, 0($t1)
+asteroid_speeds.done:
+	jr $ra
+	
+	
+
 # draw_power_up: This function will draw the powerup at a random location
 #		  if the spawn timer has hit zero
 draw_power_up:
@@ -101,7 +129,6 @@ draw_power_up:
 	j draw_power_up.color
 draw_power_up.loop:
 	la $t8, power_up	# $t3 holds address of powerup 
-	
 	# Random number generator
 	li $v0, 42
 	li $a0, 0
@@ -121,9 +148,27 @@ draw_power_up.loop:
 	mul $t9, $t9, 4	
 	add $t5, $t5, $t9	# $t5 holds the index on the display
 	
+	# delete the powerup
+	lw $t4, 0($t8)
+	li $t6, BLACK
+	add $t7, $t0, $t4	# get display position
+	
+	sw $t6, 0($t7)		# color that position on display
+	sw $t6, 4($t7)
+	sw $t6, -4($t7)
+	
+	add $t4, $t4, 256	# color bottom part of the cross
+	add $t7, $t0, $t4
+	sw $t6, 0($t7)
+	
+	sub $t4, $t4, 512	# color top part of the cross
+	add $t7, $t0, $t4
+	sw $t6, 0($t7)
+	
 	sw $t5, 0($t8)		# store position in power up
 	
 	li $t2, 300		# Reset the spawn timer
+	la $t1, power_up_timer	# $t1 will hold the spawn timer
 	sw $t2, 0($t1)
 	
 	# Checks the type of powerup and flips it
@@ -165,6 +210,49 @@ draw_power_up.done:
 	jr $ra
 
 
+
+# powerup_collision: This function checks to see if the ship has 
+# 		      collided with the powerup and applies the 
+#		      effect based off of the powerup type
+powerup_collision:
+	la $t1, power_up			# $t1 holds address of powerup
+	la $t2, ship				# $t2 holds address of the ship
+	lw $t3, 0($t1)
+	lw $t4, 68($t2)
+	sub $t5, $t3, $t4			# get distance
+	beq $t5, $zero, collision.yes		# check if collision occurred
+	j powerup_collision.done
+collision.yes:					# collision has occurred with the powerup
+	la $t3, power_type			# get the current powerup type
+	lw $t3, 0($t3)
+	beq $t3, 1, health_powerup		# branch if powerup is health type
+	la $t4, asteroid_speed			# get asteroid speed
+	lw $t5, 0($t4)
+	sub $t5, $t5, 1				# decrement asteroid speed by 1
+	blt $t5, 1, powerup_collision.done	# if speed < 1 then dont use powerup
+	sw $t5, 0($t4)
+	add $sp, $sp, 4
+	sw $ra, 0($sp)
+	jal draw_power_up.loop			# if powerup used then delete from display
+	lw $ra, 0($sp)
+	sub $sp, $sp, 4
+	j powerup_collision.done		# skip to end 
+health_powerup:					# if type is currently a health powerup
+	la $t2, health				# get the health
+	lw $t1, 0($t2)	
+	add $t1, $t1, 5				# add 5 to the existing health
+	bgt $t1, 20, powerup_collision.done	# if new health is greater than max health skip this powerup
+	sw $t1, 0($t2)
+	add $sp, $sp, 4
+	sw $ra, 0($sp)
+	jal draw_power_up.loop			# if powerup is used then delete it from the screen
+	lw $ra, 0($sp)
+	sub $sp, $sp, 4
+powerup_collision.done:
+	jr $ra
+	
+	
+	
 # game_over: This function handles the game over screen and waits to
 #	     see if the user wants to restart the game
 game_over:
@@ -192,6 +280,8 @@ restart:
 	j game_loop			# jump back to the main game loop
 
 
+
+
 # handle_keypress: This function handles any keys pressed and calls the 
 # 		   correct function to handle the key press
 handle_keypress:
@@ -215,10 +305,19 @@ restart_game:
 	jal clear_screen
 	lw $ra, 0($sp)
 	sub $sp, $sp, 4
+	la $t1, asteroid_speed
+	li $t2, 1
+	sw $t2, 0($t1)
+	la $t1, asteroid_timer
+	li $t2, 350
+	sw $t2, 0($t1)
 	jr $ra
+
+
 
 # move_ship_up: This function moves the ship up when the w key is pressed
 move_ship_up:
+	jal delete_ship
 	la $t1, ship	# $t1 holds address of the ship
 	li $t3, 0	# $t3 holds the iterator for the loop
 	li $t4, 0	# $t4 holds the address of ship[i]
@@ -235,9 +334,11 @@ move_ship_up.loop:
 move_ship_up.end_loop:
 	j keypress_return	# return to game loop
 	
+	
 
 # move_ship_down: This function moves the ship down when the s key is pressed
 move_ship_down:
+	jal delete_ship
 	la $t1, ship		# $t1 holds address of the ship
 	li $t3, 0		# $t3 holds the iterator for the loop
 	li $t4, 0		# $t4 holds the address of ship[i]
@@ -255,8 +356,10 @@ move_ship_down.end_loop:
 	j keypress_return	# return to game loop
 
 
+
 # move_ship_left: This function moves the ship left when the a key is pressed
 move_ship_left:
+	jal delete_ship
 	la $t1, ship		# $t1 holds address of the ship
 	li $t3, 0		# $t3 holds the iterator for the loop
 	li $t4, 0		# $t4 holds the address of ship[i]
@@ -278,8 +381,10 @@ move_ship_left.end_loop:
 	j keypress_return	# return to game loop
 	
 	
+	
 # move_ship_right: This function moves the ship right when the d key is pressed
 move_ship_right:
+	jal delete_ship
 	la $t1, ship	# $t1 holds address of the ship
 	li $t3, 0	# $t3 holds the iterator for the loop
 	li $t4, 0	# $t4 holds the address of ship[i]
@@ -299,6 +404,7 @@ move_ship_right.loop:
 	j move_ship_right.loop
 move_ship_right.end_loop:
 	j keypress_return	# return to game loop
+
 
 
 # update_asteroids: This function updates the state of the asteroids
@@ -484,13 +590,17 @@ update_asteroids.loop:
 	beq $t4, 144, update_asteroids.end_loop		# for loop for entire asteroid
 	add $t2, $t4, $t1					# get address of asteroids[i]
 	lw $t6, 0($t2)						# get value at asteroids[i]
-	sub $t6, $t6, 4						# move to the left
+	la $t3, asteroid_speed
+	lw $t3, 0($t3)						# get asteroid speed
+	mul $t3, $t3, 4						# multiply by 4
+	sub $t6, $t6, $t3					# move to the left
 	sw $t6, 0($t2)						# write new position
 	add $t4, $t4, 4
 	j update_asteroids.loop
 update_asteroids.end_loop:
 	jr $ra
 	
+
 
 # clear_screen: This function will clear the display, making every pixel black
 clear_screen:
@@ -505,6 +615,7 @@ clear_screen.loop:
 	j clear_screen.loop
 clear_screen.end_loop:
 	jr $ra
+
 
 
 # init_asteroids: This function initializes the contents of the asteroids. At
@@ -581,6 +692,7 @@ init_asteroids.first_genrandom:		# generate new random number
 	j init_asteroids.first_continue
 init_asteroids.second:
 	jr $ra
+	
 	
 	
 # init_ship: This function initializes the contents of the ship. At each index
@@ -717,6 +829,7 @@ init_ship.end_loop9:
 	jr $ra
 
 
+
 # draw_asteroids: This function draws the asteroids on the display at the current 
 #	     location of the asteroids.
 draw_asteroids:
@@ -735,6 +848,28 @@ draw_asteroids.loop:
 	j draw_asteroids.loop 
 draw_asteroids.end_loop:
 	jr $ra
+
+
+
+# delete_asteroids: This function deletes the asteroids from the screen
+#	     	     so that we can move them smoothly
+delete_asteroids:
+	la $t1, asteroids
+	li $t2, BLACK
+	li $t3, 0
+	li $t4, 0
+	li $t6, 0
+delete_asteroids.loop:
+	beq $t4, 144, delete_asteroids.end_loop	# while not at end of asteroid
+	add $t6, $t1, $t4			# get asteroids[i]
+	lw $t3, 0($t6)				# get value at asteroids[i]
+	add $t6, $t0, $t3			# get position on display
+	sw $t2, 0($t6)				# color that position
+	add $t4, $t4, 4				# increment iterator
+	j delete_asteroids.loop 
+delete_asteroids.end_loop:
+	jr $ra
+	
 	
 	
 # draw_ship: This function draws the ship on the display at the current 
@@ -760,6 +895,26 @@ draw_ship.end_loop:
 	jr $ra
 
 
+# delete_ship: This function paints the ship to match the background so that
+#	       the ship can be moved to a new position
+delete_ship:
+	la $t1, ship		# $t1 holds address of the ship
+	li $t3, 0		# $t3 holds the index on the display
+	li $t4, 0		# $t4 holds the iterator for loop
+	li $t5, BLACK		# $t5 holds color at current index
+	li $t6, 0		# $t6 holds offset
+delete_ship.loop:
+	beq $t4, 144, delete_ship.end_loop		# while not at the end of the array
+	add $t6, $t1, $t4			# get ship[i]
+	lw $t3, 0($t6)				# get value from ship[i]
+	add $t6, $t0, $t3			# get position on display
+	sw $t5, 0($t6)				# color that position
+	add $t4, $t4, 4				# increment iterator
+	j delete_ship.loop
+delete_ship.end_loop:
+	jr $ra
+	
+	
 # check_collisions: This function checks for collisions between the player ship and
 # 		     the asteroids
 check_collisions:
