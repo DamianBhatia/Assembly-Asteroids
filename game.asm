@@ -1,39 +1,3 @@
-#####################################################################
-#
-#  CSCB58 Winter 2021 Assembly Final Project
-#  University of Toronto, Scarborough
-#
-#  Student: Damian Bhatia, 1005946577, Bhatia85
-#
-#  Bitmap Display Configuration:
-#  - Unit width in pixels: 8 (update this as needed)
-#  - Unit height in pixels: 8 (update this as needed)
-#  - Display width in pixels: 512 (update this as needed)
-#  - Display height in pixels: 512 (update this as needed)
-#  - Base Address for Display: 0x10008000 ($gp)
-#
-#  Which milestones have been reached in this submission?
-#  (See the assignment handout for descriptions of the milestones)
-#  - Milestone 4 (choose the one the applies)
-#
-#  Which approved features have been implemented for milestone 4?
-#  (See the assignment handout for the list of additional features)
-#  1. Asteroid speeds increase the longer the game progresses
-#  2. Heal and Slow Asteroids powerups appear randomly that the ship can pickup
-#  3. Smooth graphics to try and eliminate flickering
-#  ... (add more if necessary)
-#
-#  Link to video demonstration for final submission:
-#  -(insert YouTube / MyMedia / other URL here). Make sure we can view it!
-#
-#  Are you OK with us sharing the video with people outside course staff?
-#  -yes / no/ yes, and please share this project githublink as well!
-#
-#  Any additional information that the TA needs to know:
-#  -(write here, if any)
-#
-#####################################################################
-
 .eqv	BASE_ADDRESS		0x10008000
 .eqv	PURPLE			0x00673AB7
 .eqv	GREEN			0x00607D8B
@@ -60,6 +24,7 @@ asteroid_timer:			.word		350	# timer for when to increment asteroid speed
 
 .text
 	li $t0, BASE_ADDRESS	# $t0 stores the base address for the display
+	jal clear_screen	# resets the screen
 	jal init_ship		# initialize ship contents
 	jal init_asteroids	# initialize asteroid contents
 	jal init_healthbar	# initialize ship health bar
